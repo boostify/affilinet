@@ -39,8 +39,7 @@ class AffilinetApi
     def method_missing(method, *args)
       if get_driver.respond_to?(api_method(method))
         arguments = { 'CredentialToken' => get_valid_token, "#{method.to_s.camelize}RequestMessage" => args.first }
-        res = get_driver.send(api_method(method), arguments)
-        res
+        get_driver.send(api_method(method), arguments)
       else
         super
       end
@@ -69,7 +68,7 @@ class AffilinetApi
           :Username => @user,
           :Password => @password,
           :WebServiceType => 'Publisher',
-          :DeveloperSettings => { :SandboxPublisherID => 403233 }
+          :DeveloperSettings => { :SandboxPublisherID => ENV['AFFILINET_SANDBOXPUBLISHERID'] }
         })
       @created = Time.now
       @token
