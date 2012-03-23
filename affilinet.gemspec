@@ -1,11 +1,11 @@
 Gem::Specification.new do |s|
-  s.name        = 'zanox'
+  s.name        = 'affilinet'
   s.version     = '0.1.0'
-  s.date        = '2012-02-09'
-  s.summary     = "This is a simple ruby wrapper around the Zanox REST API for reports"
+  s.date        = '2012-03-23'
+  s.summary     = "This is a simple ruby wrapper around the Affilinet SOAP API for reports"
   s.description = ""
   s.authors     = ["Frank Eckert"]
   s.email       = 'frank.ecker@donovo.org'
-  s.files       = ["lib/zanox.rb"]
+  s.files       = ["lib/AffilinetApi.rb"]
   s.add_dependency(%q<ruby-hmac>, [">= 0"])
 end
