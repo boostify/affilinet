@@ -29,8 +29,8 @@ class AffilinetApi
 
     def initialize(wsdl, user, password, url)
       @wsdl = wsdl
-      @user = user
-      @password = password
+      @user = user.dup
+      @password = password.dup
       @base_url = url
     end
 
@@ -68,7 +68,7 @@ class AffilinetApi
           :Username => @user,
           :Password => @password,
           :WebServiceType => 'Publisher',
-          :DeveloperSettings => { :SandboxPublisherID => ENV['AFFILINET_SANDBOXPUBLISHERID'] }
+          :DeveloperSettings => { :SandboxPublisherID => ENV['AFFILINET_SANDBOXPUBLISHERID'].dup }
         })
       @created = Time.now
       @token
