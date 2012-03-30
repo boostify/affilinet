@@ -6,6 +6,6 @@ Gem::Specification.new do |s|
   s.description = ""
   s.authors     = ["Frank Eckert"]
   s.email       = 'frank.ecker@donovo.org'
-  s.files       = ["lib/AffilinetApi.rb"]
+  s.files       = ["lib/affilinet.rb"]
   s.add_dependency(%q<ruby-hmac>, [">= 0"])
 end
