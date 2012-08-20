@@ -7,12 +7,14 @@ module Affilinet
   class API
 
   # create a new webservice for each wsdl
-  {
+  SERVICES = {
+    :creative => '/V2.0/PublisherCreative.svc?wsdl',
     :product => '/V2.0/ProductServices.svc?wsdl',
     :account => '/V2.0/PublisherInbox.svc?wsdl',
     :statistics => '/V2.0/PublisherStatistics.svc?wsdl',
     :program_list => '/V2.0/PublisherProgram.svc?wsdl'
-  }.each do |key, wsdl|
+  }
+  SERVICES.each do |key, wsdl|
     define_method(key) do
       Affilinet::API::WebService.new(wsdl, @user, @password, @base_url)
     end
@@ -40,6 +42,10 @@ module Affilinet
       def method_missing(method, *args)
         if get_driver.respond_to?(api_method(method))
           arguments = { 'CredentialToken' => get_valid_token, "#{method.to_s.camelize}RequestMessage" => args.first }
+          # we don't want ...RequestMessage for the creative service
+          if @wsdl == Affilinet::API::SERVICES[:creative]
+            arguments.merge!(args.first)
+          end
           get_driver.send(api_method(method), arguments)
         else
           super
