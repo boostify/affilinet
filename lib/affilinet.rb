@@ -3,20 +3,21 @@ gem 'soap4r'
 require 'soap_mapping_object_extension'
 require 'soap/wsdlDriver'
 
-module Affilinet
+module AffilinetAPI
   class API
 
   # create a new webservice for each wsdl
   SERVICES = {
     :creative => '/V2.0/PublisherCreative.svc?wsdl',
     :product => '/V2.0/ProductServices.svc?wsdl',
-    :account => '/V2.0/PublisherInbox.svc?wsdl',
+    :inbox => '/V2.0/PublisherInbox.svc?wsdl',
+    :account => '/V2.0/AccountService.svc?wsdl',
     :statistics => '/V2.0/PublisherStatistics.svc?wsdl',
     :program_list => '/V2.0/PublisherProgram.svc?wsdl'
   }
   SERVICES.each do |key, wsdl|
     define_method(key) do
-      Affilinet::API::WebService.new(wsdl, @user, @password, @base_url)
+      AffilinetAPI::API::WebService.new(wsdl, @user, @password, @base_url)
     end
   end
 
@@ -43,7 +44,8 @@ module Affilinet
         if get_driver.respond_to?(api_method(method))
           arguments = { 'CredentialToken' => get_valid_token, "#{method.to_s.camelize}RequestMessage" => args.first }
           # we don't want ...RequestMessage for the creative service
-          if @wsdl == Affilinet::API::SERVICES[:creative]
+          if (@wsdl == AffilinetAPI::API::SERVICES[:creative]) ||
+            (@wsdl == AffilinetAPI::API::SERVICES[:account])
             arguments.merge!(args.first)
           end
           get_driver.send(api_method(method), arguments)
