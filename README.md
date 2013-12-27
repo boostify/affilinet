@@ -3,6 +3,8 @@ Affilinet
 
 by Frank C. Eckert
 
+[![Build Status](https://travis-ci.org/opahk/affilinet.png)](https://travis-ci.org/opahk/affilinet)
+
 License
 -------
 

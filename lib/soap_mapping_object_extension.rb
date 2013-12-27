@@ -13,7 +13,7 @@ module SOAP
       protected
 
       def find_records
-        tmp = return_obj_by_condition(self, '.*')
+        tmp = return_obj_by_condition(self, 'records')
         if tmp2 = return_obj_by_condition(tmp,'records')
           if item = return_obj_by_condition(tmp2, 'record')
             if item.is_a?(Array)

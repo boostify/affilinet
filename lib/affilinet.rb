@@ -1,7 +1,8 @@
 require 'rubygems'
-gem 'soap4r'
-require 'soap_mapping_object_extension'
-require 'soap/wsdlDriver'
+#gem 'soap4r'
+#require 'soap_mapping_object_extension'
+#require 'soap/wsdlDriver'
+require 'savon'
 
 module AffilinetAPI
   class API
@@ -41,14 +42,25 @@ module AffilinetAPI
     # checks against the wsdl if method is supported and raises an error if not
     #
       def method_missing(method, *args)
-        if get_driver.respond_to?(api_method(method))
-          arguments = { 'CredentialToken' => get_valid_token, "#{method.to_s.camelize}RequestMessage" => args.first }
+        services = get_driver.services
+        service = services.keys.first
+        port = services.values.first[:ports].keys.first
+        operations = get_driver.operations(service, port)
+
+        operation_name = api_method(method)
+        if operations.include? operation_name
+          operation = get_driver.operation(service, port, operation_name)
+          arguments = args.first.merge({ 'CredentialToken' => get_valid_token })
           # we don't want ...RequestMessage for the creative service
           if (@wsdl == AffilinetAPI::API::SERVICES[:creative]) ||
             (@wsdl == AffilinetAPI::API::SERVICES[:account])
             arguments.merge!(args.first)
           end
-          get_driver.send(api_method(method), arguments)
+          operation.body = {
+            "#{method.to_s.camelize}Request" => arguments
+          }
+          res = operation.call
+          Hashie::Mash.new res.body.values.first
         else
           super
         end
@@ -63,9 +75,11 @@ module AffilinetAPI
       end
 
       def soap_driver(wsdl)
-        driver = SOAP::WSDLDriverFactory.new(@base_url + wsdl).create_rpc_driver
-        driver.wiredump_dev = STDOUT if $DEBUG
-        driver.options['protocol.http.ssl_config.verify_mode'] = OpenSSL::SSL::VERIFY_NONE
+        #driver = SOAP::WSDLDriverFactory.new(@base_url + wsdl).create_rpc_driver
+        #driver.wiredump_dev = STDOUT #if $DEBUG
+        #driver.options['protocol.http.ssl_config.verify_mode'] = OpenSSL::SSL::VERIFY_NONE
+        #ap driver.instance_variables
+        driver = Savon.new(@base_url + wsdl)
         driver
       end
 
@@ -73,12 +87,21 @@ module AffilinetAPI
       #
       def get_valid_token
         return @token if (@token and (@created > 20.minutes.ago))
-        @token = soap_driver("/V2.0/Logon.svc?wsdl").logon({
-            :Username => @user,
-            :Password => @password,
-            :WebServiceType => 'Publisher',
-            :DeveloperSettings => { :SandboxPublisherID => ENV['AFFILINET_SANDBOXPUBLISHERID'].dup }
-          })
+        driver = soap_driver("/V2.0/Logon.svc?wsdl")
+        operation = driver.operation('Authentication', 'DefaultEndpointLogon', 'Logon')
+        operation.body = {
+          LogonRequestMsg: {
+            'Username' => @user,
+            'Password' => @password,
+            'WebServiceType' => 'Publisher',
+            'DeveloperSettings' => {
+              :SandboxPublisherID => ENV['AFFILINET_SANDBOXPUBLISHERID'].dup
+            }
+          }
+        }
+        response = operation.call
+
+        @token = response.body[:credential_token]
         @created = Time.now
         @token
       end
