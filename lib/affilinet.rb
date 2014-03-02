@@ -1,7 +1,4 @@
 require 'rubygems'
-#gem 'soap4r'
-#require 'soap_mapping_object_extension'
-#require 'soap/wsdlDriver'
 require 'savon'
 
 module AffilinetAPI
@@ -25,7 +22,11 @@ module AffilinetAPI
   # set the base_url and credentials
   #
   def initialize(user, password, options = {})
-    @base_url = options[:developer] ? 'https://developer-api.affili.net' : 'https://api.affili.net'
+    @base_url = if options[:developer]
+                  'https://developer-api.affili.net'
+                else
+                  'https://api.affili.net'
+                end
     @user = user
     @password = password
   end
@@ -41,32 +42,36 @@ module AffilinetAPI
 
     # checks against the wsdl if method is supported and raises an error if not
     #
-      def method_missing(method, *args)
-        services = get_driver.services
-        service = services.keys.first
-        port = services.values.first[:ports].keys.first
-        operations = get_driver.operations(service, port)
+    def method_missing(method, *args)
+      services = get_driver.services
+      service = services.keys.first
+      port = services.values.first[:ports].keys.first
+      operations = get_driver.operations(service, port)
 
-        operation_name = api_method(method)
-        if operations.include? operation_name
-          operation = get_driver.operation(service, port, operation_name)
-          arguments = args.first.merge({ 'CredentialToken' => get_valid_token })
-          # we don't want ...RequestMessage for the creative service
-          if (@wsdl == AffilinetAPI::API::SERVICES[:creative]) ||
-            (@wsdl == AffilinetAPI::API::SERVICES[:account])
-            arguments.merge!(args.first)
-          end
-          operation.body = {
-            "#{method.to_s.camelize}Request" => arguments
-          }
-          res = operation.call
-          Hashie::Mash.new res.body.values.first
-        else
-          super
+      operation_name = api_method(method)
+      if operations.include? operation_name
+        operation = get_driver.operation(service, port, operation_name)
+        #arguments = args.first.merge({ 'CredentialToken' => get_valid_token })
+        arguments = args.first
+        # we don't want ...RequestMessage for the creative service
+        if (@wsdl == AffilinetAPI::API::SERVICES[:creative]) ||
+          (@wsdl == AffilinetAPI::API::SERVICES[:account])
+          arguments.merge!(args.first)
         end
+        operation.body = {
+          "#{method.to_s.camelize}Request" => {
+            'CredentialToken' => get_valid_token,
+            "#{method.to_s.camelize}RequestMessage" => args.first
+          }
+        }
+        res = operation.call
+        Hashie::Mash.new res.body.values.first
+      else
+        super
       end
+    end
 
-      protected
+    protected
 
       # only return a new driver if no one exists already
       #
@@ -87,8 +92,9 @@ module AffilinetAPI
       #
       def get_valid_token
         return @token if (@token and (@created > 20.minutes.ago))
-        driver = soap_driver("/V2.0/Logon.svc?wsdl")
-        operation = driver.operation('Authentication', 'DefaultEndpointLogon', 'Logon')
+        driver = soap_driver('/V2.0/Logon.svc?wsdl')
+        operation = driver.operation('Authentication', 'DefaultEndpointLogon',
+                                     'Logon')
         operation.body = {
           LogonRequestMsg: {
             'Username' => @user,
@@ -110,10 +116,8 @@ module AffilinetAPI
       #
       def api_method(method)
         method = method.to_s.camelize
-        method == "GetSubIdStatistics" ? "GetSubIDStatistics" : method
+        method == 'GetSubIdStatistics' ? 'GetSubIDStatistics' : method
       end
-
     end
   end
 end
-
