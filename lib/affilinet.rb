@@ -13,6 +13,9 @@ module AffilinetAPI
     :statistics => '/V2.0/PublisherStatistics.svc?wsdl',
     :program_list => '/V2.0/PublisherProgram.svc?wsdl'
   }
+
+  LOGON_SERVICE = '/V2.0/Logon.svc?wsdl'
+
   SERVICES.each do |key, wsdl|
     define_method(key) do
       AffilinetAPI::API::WebService.new(wsdl, @user, @password, @base_url)
@@ -43,59 +46,82 @@ module AffilinetAPI
     # checks against the wsdl if method is supported and raises an error if not
     #
     def method_missing(method, *args)
-      services = get_driver.services
-      service = services.keys.first
-      port = services.values.first[:ports].keys.first
-      operations = get_driver.operations(service, port)
-
-      operation_name = api_method(method)
-      if operations.include? operation_name
-        operation = get_driver.operation(service, port, operation_name)
-        #arguments = args.first.merge({ 'CredentialToken' => get_valid_token })
+      if operations_include?(method)
+        op = operation(method)
         arguments = args.first
-        # we don't want ...RequestMessage for the creative service
-        if (@wsdl == AffilinetAPI::API::SERVICES[:creative]) ||
-          (@wsdl == AffilinetAPI::API::SERVICES[:account])
-          arguments.merge!(args.first)
-        end
-        operation.body = {
+        # TODO we don't want ...RequestMessage for the creative service
+        #arguments = args.first.merge({ 'CredentialToken' => get_valid_token })
+        #if (@wsdl == AffilinetAPI::API::SERVICES[:creative]) ||
+          #(@wsdl == AffilinetAPI::API::SERVICES[:account])
+          #arguments.merge!(args.first)
+        #end
+        op.body = {
           "#{method.to_s.camelize}Request" => {
             'CredentialToken' => get_valid_token,
             "#{method.to_s.camelize}RequestMessage" => args.first
           }
         }
-        res = operation.call
+        res = op.call
         Hashie::Mash.new res.body.values.first
       else
         super
       end
     end
 
+    def operations_include?(method)
+      operations.include? api_method(method)
+    end
+
+    def operations
+      driver.operations(service, port)
+    end
+
+    def operation(method)
+      driver.operation service, port, api_method(method)
+    end
+
+    def services
+      driver.services
+    end
+
+    def service
+      services.keys.first
+    end
+
+    def port
+      port = services.values.first[:ports].keys.first
+    end
+
     protected
 
       # only return a new driver if no one exists already
       #
-      def get_driver
-        @driver ||= soap_driver(@wsdl)
+      def driver
+        @driver ||= Savon.new(@base_url + @wsdl)
       end
 
-      def soap_driver(wsdl)
-        #driver = SOAP::WSDLDriverFactory.new(@base_url + wsdl).create_rpc_driver
-        #driver.wiredump_dev = STDOUT #if $DEBUG
-        #driver.options['protocol.http.ssl_config.verify_mode'] = OpenSSL::SSL::VERIFY_NONE
-        #ap driver.instance_variables
-        driver = Savon.new(@base_url + wsdl)
-        driver
+      def logon_driver
+        @logon_driver ||= Savon.new(@base_url + LOGON_SERVICE)
       end
 
       # returns actual token or a new one if expired
       #
-      def get_valid_token
-        return @token if (@token and (@created > 20.minutes.ago))
-        driver = soap_driver('/V2.0/Logon.svc?wsdl')
-        operation = driver.operation('Authentication', 'DefaultEndpointLogon',
-                                     'Logon')
-        operation.body = {
+      def token
+        return @token if (@token && @created > 20.minutes.ago)
+        @created = Time.now
+        @token = fresh_token
+      end
+
+      def fresh_token
+        operation = logon_driver
+          .operation('Authentication', 'DefaultEndpointLogon', 'Logon')
+        operation.body = logon_body
+        response = operation.call
+        response.body[:credential_token]
+      end
+
+      def logon_body
+        {
           LogonRequestMsg: {
             'Username' => @user,
             'Password' => @password,
@@ -105,11 +131,7 @@ module AffilinetAPI
             }
           }
         }
-        response = operation.call
 
-        @token = response.body[:credential_token]
-        @created = Time.now
-        @token
       end
 
       # handles the special name case of getSubIDStatistics
