@@ -8,5 +8,5 @@ Gem::Specification.new do |s|
   s.email       = 'frank.ecker@donovo.org'
   s.files       = `git ls-files`.split($\)
 
-  s.add_dependency 'savon'
+  #s.add_dependency 'savon', '~> 3.0.0'
 end
