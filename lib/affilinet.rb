@@ -57,7 +57,7 @@ module AffilinetAPI
         #end
         op.body = {
           "#{method.to_s.camelize}Request" => {
-            'CredentialToken' => get_valid_token,
+            'CredentialToken' => token,
             "#{method.to_s.camelize}RequestMessage" => args.first
           }
         }
