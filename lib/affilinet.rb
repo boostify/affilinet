@@ -1,7 +1,5 @@
 require 'rubygems'
-gem 'soap4r'
-require 'soap_mapping_object_extension'
-require 'soap/wsdlDriver'
+require 'savon'
 
 module AffilinetAPI
   class API
@@ -15,6 +13,9 @@ module AffilinetAPI
     :statistics => '/V2.0/PublisherStatistics.svc?wsdl',
     :program_list => '/V2.0/PublisherProgram.svc?wsdl'
   }
+
+  LOGON_SERVICE = '/V2.0/Logon.svc?wsdl'
+
   SERVICES.each do |key, wsdl|
     define_method(key) do
       AffilinetAPI::API::WebService.new(wsdl, @user, @password, @base_url)
@@ -24,7 +25,11 @@ module AffilinetAPI
   # set the base_url and credentials
   #
   def initialize(user, password, options = {})
-    @base_url = options[:developer] ? 'https://developer-api.affili.net' : 'https://api.affili.net'
+    @base_url = if options[:developer]
+                  'https://developer-api.affili.net'
+                else
+                  'https://api.affili.net'
+                end
     @user = user
     @password = password
   end
@@ -40,57 +45,98 @@ module AffilinetAPI
 
     # checks against the wsdl if method is supported and raises an error if not
     #
-      def method_missing(method, *args)
-        if get_driver.respond_to?(api_method(method))
-          arguments = { 'CredentialToken' => get_valid_token, "#{method.to_s.camelize}RequestMessage" => args.first }
-          # we don't want ...RequestMessage for the creative service
-          if (@wsdl == AffilinetAPI::API::SERVICES[:creative]) ||
-            (@wsdl == AffilinetAPI::API::SERVICES[:account])
-            arguments.merge!(args.first)
-          end
-          get_driver.send(api_method(method), arguments)
-        else
-          super
-        end
+    # TODO we don't want ...RequestMessage for the creative service
+    # consequently those services don't work
+    def method_missing(method, *args)
+      if operations_include?(method)
+        op = operation(method)
+        arguments = args.first
+        op.body = {
+          "#{method.to_s.camelize}Request" => {
+            'CredentialToken' => token,
+            "#{method.to_s.camelize}RequestMessage" => args.first
+          }
+        }
+        res = op.call
+        Hashie::Mash.new res.body.values.first
+      else
+        super
       end
+    end
 
-      protected
+    protected
 
       # only return a new driver if no one exists already
       #
-      def get_driver
-        @driver ||= soap_driver(@wsdl)
+      def driver
+        @driver ||= Savon.new(@base_url + @wsdl)
       end
 
-      def soap_driver(wsdl)
-        driver = SOAP::WSDLDriverFactory.new(@base_url + wsdl).create_rpc_driver
-        driver.wiredump_dev = STDOUT if $DEBUG
-        driver.options['protocol.http.ssl_config.verify_mode'] = OpenSSL::SSL::VERIFY_NONE
-        driver
+      def logon_driver
+        @logon_driver ||= Savon.new(@base_url + LOGON_SERVICE)
       end
 
       # returns actual token or a new one if expired
       #
-      def get_valid_token
-        return @token if (@token and (@created > 20.minutes.ago))
-        @token = soap_driver("/V2.0/Logon.svc?wsdl").logon({
-            :Username => @user,
-            :Password => @password,
-            :WebServiceType => 'Publisher',
-            :DeveloperSettings => { :SandboxPublisherID => ENV['AFFILINET_SANDBOXPUBLISHERID'].dup }
-          })
+      def token
+        if (@token && @created > 20.minutes.ago)
+          return @token
+        end
         @created = Time.now
-        @token
+        @token = fresh_token
+      end
+
+      def fresh_token
+        operation = logon_driver
+          .operation('Authentication', 'DefaultEndpointLogon', 'Logon')
+        operation.body = logon_body
+        response = operation.call
+        response.body[:credential_token]
+      end
+
+      def logon_body
+        {
+          LogonRequestMsg: {
+            'Username' => @user,
+            'Password' => @password,
+            'WebServiceType' => 'Publisher',
+            'DeveloperSettings' => {
+              :SandboxPublisherID => ENV['AFFILINET_SANDBOXPUBLISHERID'].dup
+            }
+          }
+        }
+
+      end
+
+      def operations_include?(method)
+        operations.include? api_method(method)
+      end
+
+      def operations
+        driver.operations(service, port)
+      end
+
+      def operation(method)
+        driver.operation service, port, api_method(method)
+      end
+
+      def services
+        driver.services
+      end
+
+      def service
+        services.keys.first
+      end
+
+      def port
+        port = services.values.first[:ports].keys.first
       end
 
       # handles the special name case of getSubIDStatistics
       #
       def api_method(method)
-        method = method.to_s.camelize
-        method == "GetSubIdStatistics" ? "GetSubIDStatistics" : method
+        method.to_s.camelize.sub 'GetSubIdStatistics', 'GetSubIDStatistics'
       end
-
     end
   end
 end
-
