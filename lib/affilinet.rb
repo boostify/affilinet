@@ -45,16 +45,12 @@ module AffilinetAPI
 
     # checks against the wsdl if method is supported and raises an error if not
     #
+    # TODO we don't want ...RequestMessage for the creative service
+    # consequently those services don't work
     def method_missing(method, *args)
       if operations_include?(method)
         op = operation(method)
         arguments = args.first
-        # TODO we don't want ...RequestMessage for the creative service
-        #arguments = args.first.merge({ 'CredentialToken' => get_valid_token })
-        #if (@wsdl == AffilinetAPI::API::SERVICES[:creative]) ||
-          #(@wsdl == AffilinetAPI::API::SERVICES[:account])
-          #arguments.merge!(args.first)
-        #end
         op.body = {
           "#{method.to_s.camelize}Request" => {
             'CredentialToken' => token,
@@ -66,30 +62,6 @@ module AffilinetAPI
       else
         super
       end
-    end
-
-    def operations_include?(method)
-      operations.include? api_method(method)
-    end
-
-    def operations
-      driver.operations(service, port)
-    end
-
-    def operation(method)
-      driver.operation service, port, api_method(method)
-    end
-
-    def services
-      driver.services
-    end
-
-    def service
-      services.keys.first
-    end
-
-    def port
-      port = services.values.first[:ports].keys.first
     end
 
     protected
@@ -107,7 +79,9 @@ module AffilinetAPI
       # returns actual token or a new one if expired
       #
       def token
-        return @token if (@token && @created > 20.minutes.ago)
+        if (@token && @created > 20.minutes.ago)
+          return @token
+        end
         @created = Time.now
         @token = fresh_token
       end
@@ -134,11 +108,34 @@ module AffilinetAPI
 
       end
 
+      def operations_include?(method)
+        operations.include? api_method(method)
+      end
+
+      def operations
+        driver.operations(service, port)
+      end
+
+      def operation(method)
+        driver.operation service, port, api_method(method)
+      end
+
+      def services
+        driver.services
+      end
+
+      def service
+        services.keys.first
+      end
+
+      def port
+        port = services.values.first[:ports].keys.first
+      end
+
       # handles the special name case of getSubIDStatistics
       #
       def api_method(method)
-        method = method.to_s.camelize
-        method == 'GetSubIdStatistics' ? 'GetSubIDStatistics' : method
+        method.to_s.camelize.sub 'GetSubIdStatistics', 'GetSubIDStatistics'
       end
     end
   end

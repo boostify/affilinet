@@ -6,4 +6,4 @@ Affilinet
 License
 -------
 
-Published under a <a href="http://creativecommons.org/licenses/by-sa/3.0/" target="_blank">Creative Commons</a> license.
+Published under a [Creative Commons]("http://creativecommons.org/licenses/by-sa/3.0/") license.
