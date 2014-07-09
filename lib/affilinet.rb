@@ -50,13 +50,20 @@ module AffilinetAPI
     def method_missing(method, *args)
       if operations_include?(method)
         op = operation(method)
-        arguments = args.first
-        op.body = {
-          "#{method.to_s.camelize}Request" => {
-            'CredentialToken' => token,
-            "#{method.to_s.camelize}RequestMessage" => args.first
+        if method == :get_payments
+          op.body = {
+            "#{method.to_s.camelize}Request" => {
+              'CredentialToken' => token,
+            }.merge(args.first)
           }
-        }
+        else
+          op.body = {
+            "#{method.to_s.camelize}Request" => {
+              'CredentialToken' => token,
+              "#{method.to_s.camelize}RequestMessage" => args.first
+            }
+          }
+        end
         res = op.call
         Hashie::Mash.new res.body.values.first
       else
