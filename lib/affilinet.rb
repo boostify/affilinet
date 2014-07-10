@@ -50,7 +50,7 @@ module AffilinetAPI
     def method_missing(method, *args)
       if operations_include?(method)
         op = operation(method)
-        if method == :get_payments
+        if method == :get_payments || method == :search_creatives
           op.body = {
             "#{method.to_s.camelize}Request" => {
               'CredentialToken' => token,
