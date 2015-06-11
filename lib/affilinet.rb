@@ -25,11 +25,7 @@ module AffilinetAPI
   # set the base_url and credentials
   #
   def initialize(user, password, options = {})
-    @base_url = if options[:developer]
-                  'https://developer-api.affili.net'
-                else
-                  'https://api.affili.net'
-                end
+    @base_url = 'https://api.affili.net'
     @user = user
     @password = password
   end
